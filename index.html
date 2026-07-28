@@ -1,0 +1,285 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#0d1412">
+  <meta name="robots" content="noindex,nofollow,noarchive,nosnippet,noimageindex">
+  <title>YarikosBase — вход</title>
+  <style>
+    :root{color-scheme:dark;font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:#09100e;color:#f4f7f5}
+    *{box-sizing:border-box}
+    html,body{min-height:100%;margin:0}
+    body{display:grid;place-items:center;overflow-x:hidden;background:
+      radial-gradient(circle at 12% 8%,rgba(183,255,42,.13),transparent 32rem),
+      radial-gradient(circle at 88% 92%,rgba(52,211,153,.10),transparent 28rem),
+      #09100e}
+    body:before{content:"";position:fixed;inset:0;pointer-events:none;opacity:.18;background-image:
+      linear-gradient(rgba(255,255,255,.035) 1px,transparent 1px),
+      linear-gradient(90deg,rgba(255,255,255,.035) 1px,transparent 1px);background-size:32px 32px}
+    main{width:min(100% - 32px,430px);padding:36px 0 env(safe-area-inset-bottom)}
+    .brand{display:flex;align-items:center;gap:12px;margin:0 0 22px 4px;color:#f5f8f6}
+    .brand-mark{display:grid;place-items:center;width:42px;height:42px;border-radius:14px;background:#b7ff2a;color:#0a100e;font-weight:950;box-shadow:0 0 32px rgba(183,255,42,.22)}
+    .brand strong{display:block;font-size:20px;letter-spacing:-.02em}.brand small{display:block;color:#8d9994;margin-top:2px}
+    .card{position:relative;padding:28px;border:1px solid #26332e;border-radius:28px;background:rgba(17,25,22,.92);box-shadow:0 28px 80px rgba(0,0,0,.42);backdrop-filter:blur(14px)}
+    .eyebrow{margin:0 0 10px;color:#b7ff2a;font-size:12px;font-weight:850;letter-spacing:.16em;text-transform:uppercase}
+    h1{margin:0;font-size:clamp(29px,8vw,42px);line-height:1.03;letter-spacing:-.045em}
+    .lead{margin:14px 0 24px;color:#a5b0ac;line-height:1.55}
+    label{display:block;margin:0 0 8px;color:#dbe2df;font-size:14px;font-weight:750}
+    .password-row{display:grid;grid-template-columns:1fr auto;gap:8px}
+    input,button{font:inherit}
+    input{min-width:0;width:100%;height:54px;border:1px solid #35443e;border-radius:15px;padding:0 16px;background:#0b1210;color:#fff;outline:none}
+    input:focus{border-color:#b7ff2a;box-shadow:0 0 0 3px rgba(183,255,42,.12)}
+    .toggle{width:54px;border:1px solid #35443e;border-radius:15px;background:#17211d;color:#cbd4d0;cursor:pointer}
+    .submit{width:100%;height:54px;margin-top:12px;border:0;border-radius:15px;background:#b7ff2a;color:#0a100e;font-weight:900;cursor:pointer;box-shadow:0 12px 30px rgba(183,255,42,.14)}
+    .submit:disabled{cursor:wait;opacity:.62}
+    .status{min-height:23px;margin:14px 2px 0;color:#93a09a;font-size:14px;line-height:1.45}
+    .status.error{color:#ff8e8e}.status.ok{color:#b7ff2a}
+    .progress{height:4px;margin-top:14px;border-radius:999px;overflow:hidden;background:#26332e;opacity:0;transition:opacity .2s}.progress.active{opacity:1}
+    .progress>span{display:block;width:0;height:100%;border-radius:inherit;background:#b7ff2a;transition:width .15s}
+    .security{display:flex;gap:10px;margin:18px 2px 0;color:#74817b;font-size:12px;line-height:1.45}.security:before{content:"◆";color:#b7ff2a}
+    noscript{display:block;margin-top:16px;color:#ff8e8e}
+  </style>
+</head>
+<body>
+  <main>
+    <div class="brand"><span class="brand-mark">Y</span><span><strong>YarikosBase</strong><small>закрытая база знаний</small></span></div>
+    <section class="card" aria-labelledby="title">
+      <p class="eyebrow">Доступ для сотрудников</p>
+      <h1 id="title">Введите пароль</h1>
+      <p class="lead">Содержимое базы и фотографии загружаются только после успешной расшифровки.</p>
+      <form id="unlockForm">
+        <label for="password">Пароль</label>
+        <div class="password-row">
+          <input id="password" name="password" type="password" autocomplete="current-password" required autofocus>
+          <button class="toggle" id="togglePassword" type="button" aria-label="Показать пароль">◉</button>
+        </div>
+        <button class="submit" id="submitButton" type="submit">Открыть YarikosBase</button>
+      </form>
+      <div class="progress" id="progress" aria-hidden="true"><span id="progressBar"></span></div>
+      <p class="status" id="status" role="status" aria-live="polite"></p>
+      <p class="security">Пароль не отправляется на сервер. Проверка и расшифровка выполняются на этом устройстве.</p>
+      <noscript>Для входа необходимо включить JavaScript.</noscript>
+    </section>
+  </main>
+  <script>
+  (() => {
+    "use strict";
+    const MAGIC = "YBV1";
+    const AAD = new TextEncoder().encode("YarikosBase encrypted vault v1");
+    const TOKEN_PATTERN = /__YB_ASSET_\d{5}__/g;
+    const SESSION_KEY = "yarikosbase:vault-key:v1";
+    const form = document.getElementById("unlockForm");
+    const passwordInput = document.getElementById("password");
+    const submitButton = document.getElementById("submitButton");
+    const togglePassword = document.getElementById("togglePassword");
+    const status = document.getElementById("status");
+    const progress = document.getElementById("progress");
+    const progressBar = document.getElementById("progressBar");
+    let vaultPromise;
+
+    const setStatus = (message, kind = "") => {
+      status.textContent = message;
+      status.className = "status" + (kind ? " " + kind : "");
+    };
+
+    const bytesToBase64 = bytes => {
+      let binary = "";
+      const chunk = 0x8000;
+      for (let offset = 0; offset < bytes.length; offset += chunk) {
+        binary += String.fromCharCode(...bytes.subarray(offset, offset + chunk));
+      }
+      return btoa(binary);
+    };
+
+    const base64ToBytes = value => {
+      const binary = atob(value);
+      const bytes = new Uint8Array(binary.length);
+      for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
+      return bytes;
+    };
+
+    async function downloadVault() {
+      if (vaultPromise) return vaultPromise;
+      vaultPromise = (async () => {
+        progress.classList.add("active");
+        progressBar.style.width = "3%";
+        const response = await fetch("./vault.bin", { cache: "no-store" });
+        if (!response.ok) throw new Error("Не удалось загрузить защищённую базу.");
+        const total = Number(response.headers.get("content-length")) || 0;
+        if (!response.body || !total) {
+          const buffer = await response.arrayBuffer();
+          progressBar.style.width = "100%";
+          return buffer;
+        }
+        const reader = response.body.getReader();
+        const chunks = [];
+        let received = 0;
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          chunks.push(value);
+          received += value.length;
+          progressBar.style.width = Math.max(3, Math.min(96, received / total * 96)) + "%";
+          setStatus("Загрузка защищённой базы… " + Math.round(received / total * 100) + "%");
+        }
+        const joined = new Uint8Array(received);
+        let offset = 0;
+        for (const chunk of chunks) {
+          joined.set(chunk, offset);
+          offset += chunk.length;
+        }
+        progressBar.style.width = "100%";
+        return joined.buffer;
+      })();
+      try {
+        return await vaultPromise;
+      } catch (error) {
+        vaultPromise = undefined;
+        throw error;
+      }
+    }
+
+    function parseHeader(buffer) {
+      const bytes = new Uint8Array(buffer);
+      if (bytes.length < 56) throw new Error("Защищённый файл повреждён.");
+      const magic = new TextDecoder().decode(bytes.subarray(0, 4));
+      if (magic !== MAGIC) throw new Error("Неверный формат защищённой базы.");
+      const view = new DataView(buffer);
+      const iterations = view.getUint32(4, false);
+      return {
+        iterations,
+        salt: bytes.slice(8, 24),
+        iv: bytes.slice(24, 36),
+        encrypted: bytes.slice(36),
+      };
+    }
+
+    async function deriveKeyBytes(password, salt, iterations) {
+      const material = await crypto.subtle.importKey(
+        "raw",
+        new TextEncoder().encode(password.normalize("NFC")),
+        "PBKDF2",
+        false,
+        ["deriveBits"],
+      );
+      return new Uint8Array(await crypto.subtle.deriveBits(
+        { name: "PBKDF2", hash: "SHA-256", salt, iterations },
+        material,
+        256,
+      ));
+    }
+
+    async function decryptWithKey(buffer, keyBytes) {
+      const header = parseHeader(buffer);
+      const key = await crypto.subtle.importKey("raw", keyBytes, "AES-GCM", false, ["decrypt"]);
+      return crypto.subtle.decrypt(
+        { name: "AES-GCM", iv: header.iv, additionalData: AAD, tagLength: 128 },
+        key,
+        header.encrypted,
+      );
+    }
+
+    function openArchive(plainBuffer) {
+      const bytes = new Uint8Array(plainBuffer);
+      const view = new DataView(plainBuffer);
+      const manifestLength = view.getUint32(0, false);
+      const manifestStart = 4;
+      const manifestEnd = manifestStart + manifestLength;
+      if (manifestEnd > bytes.length) throw new Error("Архив базы повреждён.");
+      const manifest = JSON.parse(new TextDecoder().decode(bytes.subarray(manifestStart, manifestEnd)));
+      const dataStart = manifestEnd;
+      const entries = new Map(manifest.entries.map(entry => [entry.name, entry]));
+      const entryBytes = name => {
+        const entry = entries.get(name);
+        if (!entry) throw new Error("В архиве отсутствует " + name);
+        return bytes.slice(dataStart + entry.offset, dataStart + entry.offset + entry.length);
+      };
+      return { manifest, entries, entryBytes };
+    }
+
+    function launchSite(plainBuffer) {
+      const archive = openArchive(plainBuffer);
+      const urls = {};
+      for (const entry of archive.manifest.entries) {
+        if (!entry.type.startsWith("image/")) continue;
+        urls[entry.name] = URL.createObjectURL(new Blob([archive.entryBytes(entry.name)], { type: entry.type }));
+      }
+      let html = new TextDecoder().decode(archive.entryBytes(archive.manifest.document));
+      html = html.replace(TOKEN_PATTERN, token => {
+        const entryName = archive.manifest.tokens[token];
+        const url = urls[entryName];
+        if (!url) throw new Error("Не найден ресурс " + token);
+        return url;
+      });
+      document.open();
+      document.write(html);
+      document.close();
+    }
+
+    async function unlockWithKey(buffer, keyBytes, remember) {
+      setStatus("Проверяю пароль и расшифровываю базу…");
+      const plain = await decryptWithKey(buffer, keyBytes);
+      if (remember) sessionStorage.setItem(SESSION_KEY, bytesToBase64(keyBytes));
+      setStatus("Готово. Открываю YarikosBase…", "ok");
+      launchSite(plain);
+    }
+
+    async function unlock(password) {
+      const buffer = await downloadVault();
+      const header = parseHeader(buffer);
+      const keyBytes = await deriveKeyBytes(password, header.salt, header.iterations);
+      await unlockWithKey(buffer, keyBytes, true);
+    }
+
+    togglePassword.addEventListener("click", () => {
+      const reveal = passwordInput.type === "password";
+      passwordInput.type = reveal ? "text" : "password";
+      togglePassword.setAttribute("aria-label", reveal ? "Скрыть пароль" : "Показать пароль");
+      togglePassword.textContent = reveal ? "◌" : "◉";
+      passwordInput.focus();
+    });
+
+    form.addEventListener("submit", async event => {
+      event.preventDefault();
+      submitButton.disabled = true;
+      setStatus("Подготавливаю вход…");
+      try {
+        await unlock(passwordInput.value);
+      } catch (error) {
+        console.error(error);
+        sessionStorage.removeItem(SESSION_KEY);
+        setStatus(
+          error && error.name === "OperationError"
+            ? "Пароль не подошёл. Проверь раскладку и попробуй ещё раз."
+            : (error.message || "Не удалось открыть базу."),
+          "error",
+        );
+        progress.classList.remove("active");
+        progressBar.style.width = "0";
+        passwordInput.select();
+      } finally {
+        submitButton.disabled = false;
+      }
+    });
+
+    const savedKey = sessionStorage.getItem(SESSION_KEY);
+    if (savedKey) {
+      submitButton.disabled = true;
+      setStatus("Восстанавливаю открытый сеанс…");
+      downloadVault()
+        .then(buffer => unlockWithKey(buffer, base64ToBytes(savedKey), false))
+        .catch(error => {
+          console.error(error);
+          sessionStorage.removeItem(SESSION_KEY);
+          submitButton.disabled = false;
+          progress.classList.remove("active");
+          progressBar.style.width = "0";
+          setStatus("Сеанс закончился — введи пароль снова.");
+          passwordInput.focus();
+        });
+    }
+  })();
+  </script>
+</body>
+</html>
